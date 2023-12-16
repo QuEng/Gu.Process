@@ -1,0 +1,94 @@
+﻿@page "/categories"
+
+@inject ApplicationDbContext _context
+
+<h3>CategoriesPage</h3>
+
+<form class="form-inline" @onsubmit="AddCategory">
+    <div class="form-group">
+        <label for="code_a">Code A</label>
+        <input type="text" class="form-control" id="code_a" @bind="_newCategory.Code_A" />
+    </div>
+    <div class="form-group">
+        <label for="code_b">Code B</label>
+        <input type="text" class="form-control" id="code_b" @bind="_newCategory.Code_B" />
+    </div>
+    <div class="form-group">
+        <label for="code_c">Code C</label>
+        <input type="text" class="form-control" id="code_c" @bind="_newCategory.Code_C" />
+    </div>
+    <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" class="form-control" id="name" @bind="_newCategory.Name" />
+    </div>
+    <button type="submit" class="btn btn-primary">Add</button>
+</form>
+
+@if (_categories.Count > 0)
+{
+    <table class="table table-bordered">
+        <thead class="thead-dark">
+            <tr>
+                <th>Id</th>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var category in _categories.OrderBy(item => item.Id))
+            {
+                <tr>
+                    <td>@category.Id</td>
+                    <td>@(category.Code_A)@(category.Code_B)@(category.Code_C)</td>
+                    <td>@category.Name</td>
+                    <td>
+                        <button class="btn btn-danger" @onclick="() => MoveToGroup(category)">Move to group</button>
+                        <button class="btn btn-danger">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No categories found</p>
+}
+
+@code {
+    private HashSet<Category> _categories = new();
+    private HashSet<Group> _groups = new();
+    private Category _newCategory = new();
+
+    protected override void OnInitialized()
+    {
+        _categories = _context.Categories.ToHashSet();
+        _groups = _context.Groups.ToHashSet();
+    }
+
+    private void AddCategory()
+    {
+        _context.Categories.Add(_newCategory);
+        _context.SaveChanges();
+        _categories.Add(_newCategory);
+
+        _newCategory = new();
+    }
+
+    private void MoveToGroup(Category category)
+    {
+        var group = new Group
+            {
+                CategoryId = category.Id,
+                Name = category.Name,
+                Code_B = category.Code_B,
+                Code_C = category.Code_C
+            };
+
+        _context.Groups.Add(group);
+        _context.Categories.Remove(category);
+        _context.SaveChanges();
+        _categories.Remove(category);
+    }
+}

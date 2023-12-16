@@ -1,0 +1,24 @@
+﻿@page "/paintings/add"
+
+<h2>Add painting</h2>
+
+<input class="form-control mb-2" type="text" placeholder="Name" @bind-value="_newPainting.Name" />
+<input class="form-control mb-2" type="text" placeholder="ArticleCode" @bind-value="_newPainting.ArticleCode" />
+
+<button class="btn btn-success" @onclick=AddPainting>Add painting</button>
+
+@code
+{
+    private Painting _newPainting = new();
+
+    [Inject]
+    private ApplicationDbContext _context { get; set; } = default!;
+
+
+    private void AddPainting()
+    {
+        _context.Paintings.Add(_newPainting);
+        _context.SaveChanges();
+        _newPainting = new();
+    }
+}

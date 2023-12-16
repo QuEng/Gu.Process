@@ -1,0 +1,181 @@
+﻿@page "/products"
+@using System.Text
+
+@inject ApplicationDbContext _context
+
+<h3>Products</h3>
+
+<span>Товарів всього: @_products.Count()</span>
+<br />
+<span>Категорій не визначено: @_products.Count(item => item.CategoryId == 0)</span>
+<br />
+<span>Груп не визначено: @_products.Count(item => item.Group is null)</span>
+
+<div style="max-height: 600px; height: 600px; overflow-y: auto">
+    <table class="table table-bordered">
+        <thead class="thead-dark">
+            <tr>
+                <th>Id</th>
+                <th>Code</th>
+                <th>Article</th>
+                <th>Name</th>
+                <th>Paintings</th>
+                <th>Category</th>
+                <th>Group</th>
+                <th>Pcs/Meter</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var product in _products.OrderBy(item => item.Id))
+            {
+                <tr class="table-row">
+                    <td>@product.Id</td>
+                    <td>@(product.GroupCode)</td>
+                    <td>
+                        @if (product.EditMode == EditMode.Default)
+                        {
+                            @product.Article
+                        }
+                        else
+                        {
+                            <input type="text" class="form-control" @bind-value="@product.Article" />
+                        }
+                    </td>
+                    <td>
+                        @if (product.EditMode == EditMode.Default)
+                        {
+                            @product.Name
+                        }
+                        else
+                        {
+                            <input type="text" class="form-control" @bind-value="@product.Name" />
+                        }
+                    </td>
+                    <td>@(product.PaintingIds)</td>
+                    <td>@(product.Category is null ? "Не завантажено" : product.Category.Name)</td>
+                    <td>@(product.Group is null ? "Не завантажено" : product.Group.Name)</td>
+                    <td>@product.UnitOfMeasurement.ToString()</td>
+                    <td style="display: flex; gap: 8px">
+                        @if (product.EditMode == EditMode.Default)
+                        {
+                            <button class="btn btn-primary" @onclick="() => EditProduct(product)">Edit</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-success" @onclick="() => SaveProduct(product)">Save</button>
+                            <button class="btn btn-secondary" @onclick="() => CancelEdit(product)">Cancel</button>
+                        }
+                        <button class="btn btn-danger">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+
+<button class="btn btn-primary" @onclick="DistinctProducts">Distinct Products</button>
+
+@code
+{
+    private HashSet<Category> _categories = new();
+    private HashSet<Group> _groups = new();
+    private HashSet<Product> _products = new();
+    private HashSet<Product> _productsF1 = new();
+    private Product _backupProduct = new();
+
+    private StringBuilder _sql = new();
+
+    protected override void OnInitialized()
+    {
+        _products = _context.Products.ToHashSet();
+        _categories = _context.Categories.ToHashSet();
+        _groups = _context.Groups.ToHashSet();
+
+        foreach (var product in _products)
+        {
+            product.Category = (_categories.FirstOrDefault(item => item.Id == product.CategoryId))!;
+            product.Group = (_groups.FirstOrDefault(item => item.Id == product.GroupId))!;
+
+        }
+
+        using (var writer = new StreamWriter("sql.txt"))
+        {
+            writer.Write(_sql.ToString());
+        }
+
+        foreach (var group in _groups)
+        {
+            group.Category = _categories.Single(item => item.Id == group.CategoryId);
+        }
+
+        _productsF1 = _products.Where(item => item.Article.EndsWith("-L") || item.Article.EndsWith("-R")).ToHashSet();
+    }
+
+    private void EditProduct(Product product)
+    {
+        product.EditMode = EditMode.Edit;
+        _backupProduct.Article = product.Article;
+        _backupProduct.Name = product.Name;
+    }
+
+    private void CancelEdit(Product product)
+    {
+        product.EditMode = EditMode.Default;
+        product.Article = _backupProduct.Article;
+        product.Name = _backupProduct.Name;
+        _backupProduct = new();
+    }
+
+    private void SaveProduct(Product product)
+    {
+        product.EditMode = EditMode.Default;
+        _context.Products.Update(product);
+        _context.SaveChanges();
+    }
+
+    private void MoveToPainting()
+    {
+        var paintingFId = 3;
+        foreach (var product in _productsF1)
+        {
+            product.PaintingIds = paintingFId.ToString();
+            if (product.Article.EndsWith("-F"))
+            {
+                product.Article = product.Article.Substring(0, product.Article.Length - 2);
+            }
+            _context.Products.Update(product);
+        }
+        _context.SaveChanges();
+    }
+
+    private void DistinctProducts()
+    {
+        List<Product> distinctedProducts = new();
+        foreach (var product in _products)
+        {
+            var existDistinctedProduct = distinctedProducts.FirstOrDefault(item => item.Article == product.Article);
+            if (existDistinctedProduct is not null)
+            {
+                if (string.IsNullOrWhiteSpace(existDistinctedProduct.PaintingIds))
+                {
+                    existDistinctedProduct.PaintingIds = product.PaintingIds;
+                }
+                else
+                {
+                    existDistinctedProduct.PaintingIds += $";{product.PaintingIds}";
+                    var paintingIds = existDistinctedProduct.PaintingIds.Split(";");
+                    var distinctedPaintingIds = paintingIds.Distinct();
+                    existDistinctedProduct.PaintingIds = string.Join(";", distinctedPaintingIds);
+
+                }
+                _context.Products.Remove(product);
+                continue;
+            }
+            distinctedProducts.Add(product);
+        }
+        _context.SaveChanges();
+        _products = distinctedProducts.ToHashSet();
+    }
+}

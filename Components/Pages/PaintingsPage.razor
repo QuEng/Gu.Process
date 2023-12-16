@@ -1,0 +1,96 @@
+﻿@page "/paintings"
+@using System.Text
+
+<h2>Paintings</h2>
+
+<button class="btn btn-success mb-5" @onclick=AddPainting>Add Painting</button>
+
+<table class="table table-bordered">
+    <thead class="thead-dark">
+        <tr>
+            <th>Name</th>
+            <th>ArticleCode</th>
+            <th>Colors</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var painting in _paintings)
+        {
+            <tr>
+                <td>@painting.Name</td>
+                <td>@painting.ArticleCode</td>
+                <td>
+                    @if (painting.Colors.Any())
+                    {
+                        <ul>
+                            @foreach (var color in painting.Colors)
+                            {
+                                <li><span>@color.Name [@color.ArticleCode]</span></li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <span>No colors</span>
+                    }
+                </td>
+                <td>
+                    <button class="btn btn-primary" @onclick="() => EditPainting(painting)">Edit</button>
+                    <button class="btn btn-danger" @onclick="() => DeletePainting(painting)">Delete</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code
+{
+    private HashSet<Painting> _paintings = new();
+
+    [Inject]
+    private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject]
+    private ApplicationDbContext _context { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        _paintings = _context.Paintings.ToHashSet();
+
+        foreach (var painting in _paintings)
+        {
+            if (string.IsNullOrWhiteSpace(painting.ColorIds)) continue;
+
+            painting.Colors.Clear();
+
+            var colorIds = painting.ColorIds.Split(';').Select(item => int.Parse(item));
+
+            foreach (var colorId in colorIds)
+            {
+                var color = _context.Colors.Find(colorId);
+                if (color is null) continue;
+                painting.Colors.Add(color);
+            }
+        }
+    }
+
+    private void AddPainting()
+    {
+        NavigationManager.NavigateTo("/paintings/add");
+    }
+
+    private void EditPainting(Painting painting)
+    {
+        NavigationManager.NavigateTo($"/paintings/{painting.Id}");
+    }
+
+    private void DeletePainting(Painting painting)
+    {
+        foreach (var color in painting.Colors)
+        {
+            _context.Colors.Remove(color);
+        }
+        _context.Paintings.Remove(painting);
+        _context.SaveChanges();
+    }
+}

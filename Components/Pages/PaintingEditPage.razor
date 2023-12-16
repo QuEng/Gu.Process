@@ -1,0 +1,101 @@
+﻿@page "/paintings/{Id:int}"
+
+<h2>Edit painting @_painting.Name</h2>
+
+<input class="form-control mb-2" type="text" placeholder="Name" @bind-value="_painting.Name" />
+<input class="form-control mb-2" type="text" placeholder="ArticleCode" @bind-value="_painting.ArticleCode" />
+
+<button class="btn btn-success" @onclick=SaveChanges>Save changes</button>
+
+@if (_painting.Colors.Any())
+{
+    <h3>Colors</h3>
+    <ul>
+        @foreach (var color in _painting.Colors)
+        {
+            <li class="mb-3">
+                <span>@color.Name</span>
+                <button class="btn btn-danger" @onclick="() => RemoveColor(color)">Remove</button>
+            </li>
+        }
+    </ul>    
+}
+
+@if (_isAddingColor)
+{
+    <input class="form-control mb-2" type="text" placeholder="Name" @bind-value="_newColor.Name" />
+    <input class="form-control mb-2" type="text" placeholder="Normalized Code" @bind-value="_newColor.NormalizedCode" />
+    <input class="form-control mb-2" type="text" placeholder="Article Code" @bind-value="_newColor.ArticleCode" />
+
+    <button class="btn btn-success" @onclick=ConfirmColor>Confirm color</button>
+}
+else
+{
+    <button class="btn btn-success" @onclick=AddColorStart>Create color</button>
+}
+
+@code
+{
+    private Painting _painting = new();
+    private Color _newColor = new();
+    private bool _isAddingColor = false;
+
+    [Parameter]
+    public int Id { get; set; }
+
+    [Inject]
+    private ApplicationDbContext _context { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        _painting = (_context.Paintings.Find(Id))!;
+
+        if (_painting is null || string.IsNullOrWhiteSpace(_painting.ColorIds) is false) return;
+
+        if (string.IsNullOrWhiteSpace(_painting.ColorIds)) return;
+
+        var colorIds = _painting.ColorIds.Split(';').Select(item => int.Parse(item));
+
+        foreach (var colorId in colorIds)
+        {
+            var color = _context.Colors.Find(colorId);
+            if (color is null) continue;
+            _painting.Colors.Add(color);
+        }
+    }
+
+    private void AddColorStart()
+    {
+        _isAddingColor = true;
+        _newColor = new();
+        _newColor.PaintingId = Id;
+    }
+
+    private void ConfirmColor()
+    {
+        _isAddingColor = false;
+        _painting.Colors.Add(_newColor);
+        _context.Colors.Add(_newColor);
+        _context.SaveChanges();
+        _painting.ColorIds = string.Join(';', _painting.Colors.Select(item => item.Id));
+        _context.Paintings.Update(_painting);
+        _context.SaveChanges();
+
+    }
+
+    private void RemoveColor(Color color)
+    {
+        _painting.Colors.Remove(color);
+        _context.Colors.Remove(color);
+        _context.SaveChanges();
+        _painting.ColorIds = string.Join(';', _painting.Colors.Select(item => item.Id));
+        _context.Paintings.Update(_painting);
+        _context.SaveChanges();
+    }
+
+    private void SaveChanges()
+    {
+        _context.Paintings.Update(_painting);
+        _context.SaveChanges();
+    }
+}
